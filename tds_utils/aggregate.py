@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Read filenames of NetCDF datasets from standard input and print an NcML
 aggregation to standard output.
@@ -134,7 +133,7 @@ class AggregationError(Exception):
     """
 
 
-def main(arg_list):
+def main():
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter
@@ -154,12 +153,8 @@ def main(arg_list):
              "each file when accessing the aggregation [default: %(default)s]"
     )
 
-    args = parser.parse_args(arg_list)
+    args = parser.parse_args(sys.argv[1:])
 
     path_list = [line for line in sys.stdin.read().split(os.linesep) if line]
     ncml_el = create_aggregation(path_list, args.dimension, cache=args.cache)
     print(element_to_string(ncml_el))
-
-
-if __name__ == "__main__":
-    main(sys.argv[1:])

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Send HTTP requests to OPeNDAP/WMS endpoints for aggregate datasets on a remote
 THREDDS server so that they are cached for future access.
@@ -75,7 +74,7 @@ class AggregationCacher(object):
                 pass
 
 
-def main(arg_list):
+def main():
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter
@@ -95,11 +94,7 @@ def main(arg_list):
         help="Print aggregation URLs as they are requested"
     )
 
-    args = parser.parse_args(arg_list)
+    args = parser.parse_args(sys.argv[1:])
     agg_cacher = AggregationCacher(args.input_json, args.base_thredds_url,
                                    args.verbose)
     agg_cacher.cache_all()
-
-
-if __name__ == "__main__":
-    main(sys.argv[1:])

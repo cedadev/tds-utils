@@ -8,7 +8,7 @@ import os
 import argparse
 import xml.etree.cElementTree as ET
 
-from xml_utils import find_by_tagname
+from tds_utils.xml_utils import find_by_tagname
 
 
 def find_ncml_references(catalog_filename):
@@ -19,7 +19,7 @@ def find_ncml_references(catalog_filename):
         yield el.attrib["location"]
 
 
-def main(arg_list):
+def main():
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter
@@ -29,9 +29,5 @@ def main(arg_list):
         help="Path to THREDDS XML catalog"
     )
 
-    args = parser.parse_args(arg_list)
+    args = parser.parse_args(sys.argv[1:])
     print(os.linesep.join(find_ncml_references(args.catalog)))
-
-
-if __name__ == "__main__":
-    main(sys.argv[1:])

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Read file paths from stdin and partition into sets such that paths in each set
 only differ by having a different date in the directory components of the path.
@@ -43,19 +42,15 @@ def partition_files(file_list):
     return d
 
 
-def main(arg_list):
+def main():
     # Use argparse just for consistency with other scripts and automatic help
     # text, even though this script takes no arguments...
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    _args = parser.parse_args(arg_list)
+    _args = parser.parse_args(sys.argv[1:])
 
     path_list = [line for line in sys.stdin.read().split(os.linesep) if line]
     groups = partition_files(path_list)
     print(os.linesep.join(groups.keys()))
-
-
-if __name__ == "__main__":
-    main(sys.argv[1:])
