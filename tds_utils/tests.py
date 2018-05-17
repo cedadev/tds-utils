@@ -83,6 +83,8 @@ class TestAggregationCreation(object):
         el = ET.Element("parent", myattr="myval")
         ET.SubElement(el, "child", childattr="childval")
         ET.SubElement(el, "child")
+        with_text = ET.SubElement(el, "anotherelement", attr="value")
+        with_text.text = "hello"
         xml = element_to_string(el)
 
         try:
@@ -95,6 +97,9 @@ class TestAggregationCreation(object):
             '<parent myattr="myval">',
             '  <child childattr="childval"/>',
             '  <child/>',
+            '  <anotherelement attr="value">',
+            '    hello',
+            '  </anotherelement>',
             '</parent>'
         ]
         assert xml == os.linesep.join(lines)

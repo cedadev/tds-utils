@@ -19,16 +19,24 @@ def element_to_string(element, indentation=0):
         children += element_to_string(child, indentation=indentation + 1)
         children += os.linesep
 
-    indentation_str = " " * (2 * indentation)
+    def get_indentation(level):
+        return " " * (2 * level)
+
+    indentation_str = get_indentation(indentation)
     elem_str = "{ind}<{tag}".format(ind=indentation_str, tag=element.tag)
 
     attrs = " ".join('{}="{}"'.format(key, value) for key, value in element.items())
     if attrs:
         elem_str += " " + attrs
 
-    if children:
-        elem_str += ">"
-        elem_str += os.linesep + children
+    if children or element.text:
+        elem_str += ">" + os.linesep
+
+        if children:
+            elem_str += children
+        else:
+            elem_str += get_indentation(indentation + 1) + element.text + os.linesep
+
         elem_str += "{ind}</{tag}>".format(ind=indentation_str, tag=element.tag)
     else:
         elem_str += "/>"
