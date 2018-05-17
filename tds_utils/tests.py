@@ -8,7 +8,8 @@ import numpy as np
 
 from tds_utils.find_ncml import find_ncml_references
 from tds_utils.find_netcdf import find_netcdf_references
-from tds_utils.aggregate import create_aggregation, element_to_string, AggregationError
+from tds_utils.xml_utils import element_to_string
+from tds_utils.aggregate import create_aggregation, AggregationError
 from tds_utils.partition_files import partition_files
 from tds_utils.cache_remote_aggregations import AggregationCacher
 

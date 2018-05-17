@@ -10,39 +10,7 @@ import argparse
 
 from netCDF4 import Dataset
 
-
-def element_to_string(element, indentation=0):
-    """
-    Return a string representation of an ET.Element object with indentation and
-    line breaks.
-
-    `indentation` is how many levels to indent the returned string (2 spaces
-    per level).
-    """
-    children = ""
-    for child in element:
-        children += element_to_string(child, indentation=indentation + 1)
-        children += os.linesep
-
-    indentation_str = " " * (2 * indentation)
-    elem_str = "{ind}<{tag}".format(ind=indentation_str, tag=element.tag)
-
-    attrs = " ".join('{}="{}"'.format(key, value) for key, value in element.items())
-    if attrs:
-        elem_str += " " + attrs
-
-    if children:
-        elem_str += ">"
-        elem_str += os.linesep + children
-        elem_str += "{ind}</{tag}>".format(ind=indentation_str, tag=element.tag)
-    else:
-        elem_str += "/>"
-
-    # If this is the top level then include <?xml?> element
-    if indentation == 0:
-        prolog = '<?xml version="1.0" encoding="UTF-8"?>'
-        elem_str = prolog + os.linesep + elem_str
-    return elem_str
+from tds_utils.xml_utils import element_to_string
 
 
 def get_coord_value(filename, dimension):
