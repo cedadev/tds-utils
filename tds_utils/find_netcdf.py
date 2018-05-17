@@ -3,7 +3,6 @@ Parse a THREDDS catalog and list the references NetCDF files.
 
 Known dataset roots for specific projects are replaced with their paths on disk.
 """
-import os
 import sys
 import argparse
 import xml.etree.cElementTree as ET
