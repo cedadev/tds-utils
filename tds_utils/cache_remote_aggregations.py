@@ -13,7 +13,8 @@ JSON input should be of the following form:
     },
     ...
 }
-(any extra keys in the inner dictionaries are ignored)
+(any extra keys in the inner dictionaries are ignored. If not using WMS then
+"include_in_wms" can be omitted.)
 """
 import sys
 import json
@@ -55,7 +56,12 @@ class AggregationCacher(object):
         """
         for ds_id, ds_info in self.json_doc.items():
             if ds_info["generate_aggregation"]:
-                yield self.aggregation_url(ds_id, wms=ds_info["include_in_wms"])
+                try:
+                    wms = ds_info["include_in_wms"]
+                except KeyError:
+                    wms = False
+
+                yield self.aggregation_url(ds_id, wms=wms)
 
     def cache_all(self):
         """
