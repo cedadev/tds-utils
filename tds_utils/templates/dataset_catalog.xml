@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog xmlns="http://www.unidata.ucar.edu/namespaces/thredds/InvCatalog/v1.0"
+         name="{{ dataset_id }}">
+
+    {% for s in services %}
+    <service name="{{ s.name }}" serviceType="{{ s.type }}" base="/thredds/{{ s.base }}/"/>
+    {% endfor %}
+
+    {% for r in dataset_roots %}
+    <datasetRoot path="{{ r.path }}" location="{{ r.location }}"/>
+    {% endfor %}
+
+    <dataset name="{{ dataset_id }}" ID="{{ dataset_id }}">
+        <metadata inherited="true">
+          <dataType>Grid</dataType>
+        </metadata>
+
+        {% if aggregation %}
+        {% for a in aggregation.access_methods %}
+        <access urlPath="{{ a.url_path }}" dataFormat="{{ a.data_format }}" serviceName="{{ a.service.name }}"/>
+        {% endfor %}
+        <netcdf xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2" location="{{ aggregation.ncml_path }}"/>
+        {% endif %}
+
+        {% for d in datasets %}
+        <dataset name="{{ d.name }}" ID="{{ d.id }}">
+            {% for a in d.access_methods %}
+            <access urlPath="{{ a.url_path }}" dataFormat="{{ a.data_format }}" serviceName="{{ a.service.name }}"/>
+            {% endfor %}
+        </dataset>
+        {% endfor %}
+    </dataset>
+</catalog>

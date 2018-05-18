@@ -16,6 +16,7 @@ setup(
         "console_scripts": [
             "aggregate=tds_utils.aggregate:main",
             "cache_remote_aggregations=tds_utils.cache_remote_aggregations:main",
+            "create_catalog=tds_utils.create_catalog:main",
             "find_ncml=tds_utils.find_ncml:main",
             "find_netcdf=tds_utils.find_netcdf:main",
             "partition_files=tds_utils.partition_files:main"
