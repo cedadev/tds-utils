@@ -60,11 +60,17 @@ fi
 
 ### create_catalog
 
-Usage: `create_catalog -f <file_list> -i <dataset_id> [--opendap] [--ncml <ncml_file>]`
+Create a THREDDS catalog from a list of NetCDF files. Can create either dataset
+catalogs or root-level catalogs with links to other catalogs.
 
-Create a THREDDS catalog from a list of NetCDF files. NcML files should be
-listed on per line in `<file_list>` (filenames containing newlines are not
-supported!).
+Dataset catalogs: `create_catalog dataset -f <file_list> -i <dataset_id> [--opendap] [--ncml <ncml_file>]`
+
+Root-level catalogs: `create_catalog root -c <file_list> -r <root_dir>`
+
+When creating a dataset catalog, `<file_list>` is a file containing a list of
+NetCDF files, one per line (new lines in filenames are not supported!). For
+root catalogs, `<file_list>` should contain a list of THREDDS catalogs to link
+to.
 
 ## Tests
 

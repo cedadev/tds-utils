@@ -12,6 +12,17 @@ from tds_utils.xml_utils import element_to_string
 from tds_utils.aggregate import create_aggregation, AggregationError
 from tds_utils.partition_files import partition_files
 from tds_utils.cache_remote_aggregations import AggregationCacher
+from tds_utils.create_catalog import get_catalog_name, CatalogBuilder
+
+
+def check_valid_xml(xml_string):
+    """
+    Aassert a string is valid XML
+    """
+    try:
+        _parsed_el = ET.fromstring(xml_string)
+    except ET.ParseError:
+        assert False, "Invalid XML"
 
 
 class TestAggregationCreation(object):
@@ -87,10 +98,7 @@ class TestAggregationCreation(object):
         with_text.text = "hello"
         xml = element_to_string(el)
 
-        try:
-            _parsed_el = ET.fromstring(xml)
-        except ET.ParseError:
-            assert False, "element_to_string() returned malformed XML"
+        check_valid_xml(xml)
 
         lines = [
             '<?xml version="1.0" encoding="UTF-8"?>',
@@ -306,6 +314,7 @@ class TestNcmlFinder(object):
         got = list(find_ncml_references(str(catalog)))
         assert got == []
 
+
 class TestNetcdfFinder(object):
     def test_netcdf_present(self, tmpdir):
         """
@@ -331,3 +340,48 @@ class TestNetcdfFinder(object):
         got = list(find_netcdf_references(str(catalog), dataset_roots=roots))
         assert got == ["/first/path/one.nc", "/second/path/two.nc",
                        "prefix3/three.nc", "nested.nc"]
+
+
+class TestCreateCatalog(object):
+    def test_get_catalog_name(self, tmpdir):
+        with_name = tmpdir.join("catalog-with-a-name.xml")
+        with_name.write("""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <catalog name="some-name">
+                <dataset/>
+            </catalog>
+        """.strip())
+
+        no_name1 = tmpdir.join("catalog-without-a-name.xml")
+        no_name2 = tmpdir.join("catalog-with-no-name")
+        for cat in (no_name1, no_name2):
+            cat.write("""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <catalog>
+                    <dataset/>
+                </catalog>
+            """.strip())
+
+        assert get_catalog_name(str(with_name)) == "some-name"
+        assert get_catalog_name(str(no_name1)) == "catalog-without-a-name"
+        assert get_catalog_name(str(no_name2)) == "catalog-with-no-name"
+
+    def test_root_catalog(self, tmpdir):
+        filenames = ("one.xml", "two.xml", "three.xml")
+        catalogs = list(map(tmpdir.join, filenames))
+        for name, cat in zip(filenames, catalogs):
+            cat.write("""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <catalog name="{name}">
+                    <dataset/>
+                </catalog>
+            """.strip().format(name=name))
+
+        # Pass in absolute paths
+        paths = list(map(str, catalogs))
+        root_catalog = CatalogBuilder().root_catalog(paths, str(tmpdir))
+        check_valid_xml(root_catalog)
+        assert "<catalogRef" in root_catalog
+        # Check that paths are relative in the generated catalog
+        for name in filenames:
+            assert name in root_catalog

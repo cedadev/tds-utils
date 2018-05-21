@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog name="{{ name }}" xmlns="http://www.unidata.ucar.edu/namespaces/thredds/InvCatalog/v1.0"
+         xmlns:xlink="http://www.w3.org/1999/xlink">
+
+    {% for cat in catalogs %}
+    <catalogRef name="{{ cat.name }}" xlink:title="{{ cat.title }}" xlink:href="{{ cat.href }}"/>
+    {% endfor %}
+
+</catalog>
+
