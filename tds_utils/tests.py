@@ -15,7 +15,7 @@ from tds_utils.cache_remote_aggregations import AggregationCacher
 from tds_utils.create_catalog import get_catalog_name, CatalogBuilder
 
 
-def check_valid_xml(xml_string):
+def assert_valid_xml(xml_string):
     """
     Aassert a string is valid XML
     """
@@ -98,7 +98,7 @@ class TestAggregationCreation(object):
         with_text.text = "hello"
         xml = element_to_string(el)
 
-        check_valid_xml(xml)
+        assert_valid_xml(xml)
 
         lines = [
             '<?xml version="1.0" encoding="UTF-8"?>',
@@ -380,8 +380,61 @@ class TestCreateCatalog(object):
         # Pass in absolute paths
         paths = list(map(str, catalogs))
         root_catalog = CatalogBuilder().root_catalog(paths, str(tmpdir))
-        check_valid_xml(root_catalog)
+        assert_valid_xml(root_catalog)
         assert "<catalogRef" in root_catalog
         # Check that paths are relative in the generated catalog
         for name in filenames:
             assert name in root_catalog
+
+    def test_basic_dataset_catalog(self):
+        files = ("aerosol.nc", "soil_moisture.nc")
+        ds_id = "my-really-cool-dataset"
+        catalog = CatalogBuilder().dataset_catalog(files, ds_id)
+        assert_valid_xml(catalog)
+        assert ds_id in catalog
+        for f in files:
+            assert f in catalog
+
+    def test_access_methods(self, tmpdir):
+        def get_services(xml):
+            """
+            Return a set containing all service types found in the given
+            catalog
+            """
+            root = ET.fromstring(xml)
+            services_els = [el for el in root.iter() if el.tag.endswith("service")]
+            services = set([])
+            for s in services_els:
+                services.add(s.attrib["serviceType"])
+            return services
+
+        b = CatalogBuilder()
+
+        # Try all combinations of opendap and ncml and check services listed
+        # are correct
+        just_http = set(["HTTPServer"])
+        http_and_opendap = set(["HTTPServer", "OpenDAP"])
+
+        catalog1 = b.dataset_catalog(["file.nc"], "id", opendap=False)
+        assert get_services(catalog1) == just_http
+
+        catalog2 = b.dataset_catalog(["file.nc"], "id", opendap=True)
+        assert get_services(catalog2) == http_and_opendap
+
+        catalog3 = b.dataset_catalog(["file.nc"], "id", opendap=False,
+                                     ncml_path="ncml")
+        assert get_services(catalog3) == http_and_opendap
+
+        catalog4 = b.dataset_catalog(["file.nc"], "id", opendap=True,
+                                     ncml_path="ncml")
+        assert get_services(catalog4) == http_and_opendap
+
+    def test_aggregation(self):
+        b = CatalogBuilder()
+        ncml_path = "/path/to/agg.ncml"
+        with_ncml = b.dataset_catalog(["file.nc"], "id",
+                                      ncml_path=ncml_path)
+        without_ncml = b.dataset_catalog(["file.nc"], "id")
+        assert "<netcdf" in with_ncml
+        assert "<netcdf" not in without_ncml
+        assert ncml_path in with_ncml
