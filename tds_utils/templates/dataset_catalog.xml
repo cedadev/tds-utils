@@ -10,7 +10,12 @@
     <datasetRoot path="{{ r.path }}" location="{{ r.location }}"/>
     {% endfor %}
 
+    {% if aggregation %}
+    <dataset name="{{ dataset_id }}" ID="{{ dataset_id }}" urlPath="{{ aggregation.url_path }}">
+    {% else %}
     <dataset name="{{ dataset_id }}" ID="{{ dataset_id }}">
+    {% endif %}
+
         <metadata inherited="true">
           <dataType>Grid</dataType>
         </metadata>

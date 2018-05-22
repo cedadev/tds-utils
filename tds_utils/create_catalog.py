@@ -16,7 +16,14 @@ from jinja2 import Environment, PackageLoader
 CatalogRef = nt("CatalogRef", ["name", "title", "href"])
 ThreddsService = nt("ThreddsService", ["name", "type", "base"])
 AccessMethod = nt("AccessMethod", ["service", "url_path", "data_format"])
-Aggregation = nt("Aggregation", ["ncml_path", "access_methods"])
+
+# Note: in theory an aggregation shouldn't have a URL path as the path could
+# be different for different access methods. In practise THREDDS seems to
+# require the containing <dataset> to have a urlPath attribute for
+# aggregations, and it must match the urlPath for each access method (this is
+# surely a bug in THREDDS)
+Aggregation = nt("Aggregation", ["ncml_path", "access_methods", "url_path"])
+
 DatasetRoot = nt("DatasetRoot", ["location", "path"])
 ThreddsDataset = nt("ThreddsDataset", ["name", "id", "access_methods"])
 
@@ -92,11 +99,12 @@ class CatalogBuilder(object):
 
         aggregation = None
         if ncml_path:
-            # url path is arbitrary here
-            url_path = os.path.basename(ncml_path)
+            # url path is arbitrary here, but must be the same for each access
+            # method (see note at Aggregation definition...)
+            url_path = ds_id
             a_meths = [AccessMethod(s, url_path, "NcML")
                        for s in aggregation_services]
-            aggregation = Aggregation(ncml_path, a_meths)
+            aggregation = Aggregation(ncml_path, a_meths, url_path)
 
         context = {
             "services": all_services,
