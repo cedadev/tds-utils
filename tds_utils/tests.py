@@ -1,6 +1,7 @@
 import os
 import xml.etree.cElementTree as ET
 import json
+from time import time
 
 import pytest
 from netCDF4 import Dataset
@@ -9,7 +10,8 @@ import numpy as np
 from tds_utils.find_ncml import find_ncml_references
 from tds_utils.find_netcdf import find_netcdf_references
 from tds_utils.xml_utils import element_to_string
-from tds_utils.aggregate import create_aggregation, AggregationError
+from tds_utils.aggregate import (create_aggregation, AggregationError,
+                                 OverlappingUnitsError)
 from tds_utils.partition_files import partition_files
 from tds_utils.cache_remote_aggregations import AggregationCacher
 from tds_utils.create_catalog import get_catalog_name, CatalogBuilder
@@ -27,16 +29,19 @@ def assert_valid_xml(xml_string):
 
 class TestAggregationCreation(object):
 
-    def netcdf_file(self, tmpdir, filename):
+    def netcdf_file(self, tmpdir, filename, dim="time", values=[1234],
+                    units=None):
         """
-        Create a NetCDF file containing just a time dimension with a single
-        value. Return the path at which the dataset is saved.
+        Create a NetCDF file containing a single dimension. Return the path
+        at which the dataset is saved.
         """
         path = str(tmpdir.join(filename))
         ds = Dataset(path, "w")
-        ds.createDimension("time", None)
-        time_var = ds.createVariable("time", np.float32, ("time",))
-        time_var[:] = [1234]
+        ds.createDimension(dim, None)
+        var = ds.createVariable(dim, np.float32, (dim,))
+        if units:
+            var.units = units
+        var[:] = values
         ds.close()
         return path
 
@@ -57,14 +62,10 @@ class TestAggregationCreation(object):
             ("same_units_3.nc", "days since 1973-01-03 00:00:00 UTC")
         ]
 
-        for filename, units in diff_files + same_files:
-            path = tmpdir.join(filename)
-            ds = Dataset(path, "w")
-            ds.createDimension("time", None)
-            time_var = ds.createVariable("time", np.float32, ("time",))
-            time_var.units = units
-            time_var[:] = [0]
-            ds.close()
+        for filename, units in diff_files:
+            self.netcdf_file(tmpdir, filename, units=units)
+        for i, (filename, units) in enumerate(same_files):
+            self.netcdf_file(tmpdir, filename, units=units, values=[i])
 
         # timeUnitsChange should be present in the aggregation with different
         # time units...
@@ -120,7 +121,9 @@ class TestAggregationCreation(object):
         """
         n = 5
         filenames = ["ds_{}.nc".format(i) for i in range(n)]
-        files = [self.netcdf_file(tmpdir, filename) for filename in filenames]
+        coord_values = list(range(n))
+        files = [self.netcdf_file(tmpdir, filename, values=[val])
+                 for filename, val in zip(filenames, coord_values)]
 
         agg = create_aggregation(files, "time", cache=True)
         agg_el = list(agg)[0]
@@ -128,27 +131,27 @@ class TestAggregationCreation(object):
 
         assert len(netcdf_els) == n
 
-        for i, el in enumerate(netcdf_els):
+        for i, (el, expected_value) in enumerate(zip(netcdf_els, coord_values)):
             assert "location" in el.attrib
             assert "coordValue" in el.attrib
             assert el.attrib["location"].endswith(filenames[i])
-            assert el.attrib["coordValue"] == "1234.0"
+            assert el.attrib["coordValue"] == str(float(expected_value))
+
+    def test_multiple_coord_vaules(self, tmpdir):
+        f = self.netcdf_file(tmpdir, "f", values=[1, 2, 3])
+        agg = create_aggregation([f], "time", cache=True)
+        agg_el = list(agg)[0]
+        netcdf_els = agg_el.findall("netcdf")
+        assert len(netcdf_els) == 1
+        assert netcdf_els[0].attrib["coordValue"] == "1.0,2.0,3.0"
 
     def test_file_order(self, tmpdir):
         """
         Test that the file list in the NcML aggregation is sorted in time order
         when cache=True, and in the order given otherwise
         """
-        f1 = self.netcdf_file(tmpdir, "ds_1.nc")
-        f2 = self.netcdf_file(tmpdir, "ds_2.nc")
-        ds1 = Dataset(f1, "a")
-        ds2 = Dataset(f2, "a")
-
-        ds1.variables["time"][:] = 300
-        ds2.variables["time"][:] = 10
-
-        ds1.close()
-        ds2.close()
+        f1 = self.netcdf_file(tmpdir, "ds_1.nc", values=[300])
+        f2 = self.netcdf_file(tmpdir, "ds_2.nc", values=[10])
 
         # Give file list in reverse order - result should be sorted
         agg = create_aggregation([f1, f2], "time", cache=True)
@@ -160,17 +163,58 @@ class TestAggregationCreation(object):
         found_files2 = [el.attrib["location"] for el in list(agg2)[0].findall("netcdf")]
         assert found_files2 == [f1, f2]
 
-    def test_error_when_multiple_time_values(self, tmpdir):
+    def test_multiple_time_values_sorting(self, tmpdir):
         """
-        Check that an error is raised when trying to process a file that
-        contains more than one time coordinate value
+        Check that files are sorted correctly when they have multiple time
+        values
         """
-        f = self.netcdf_file(tmpdir, "ds.nc")
-        ds = Dataset(f, "a")
-        ds.variables["time"][:] = [1, 2, 3, 4, 5]
-        ds.close()
-        assert pytest.raises(AggregationError, create_aggregation, [f], "time",
-                             cache=True)
+        def get_sorted(*args):
+            suffix = "{}.nc".format(time())
+            filenames = []
+            for i, (filename, val) in enumerate(args):
+                filenames.append(self.netcdf_file(tmpdir, filename, values=val))
+
+            agg = create_aggregation(filenames, "time", cache=True)
+            return [os.path.basename(el.attrib["location"])
+                    for el in list(agg)[0].findall("netcdf")]
+
+        # Simple cases
+        assert get_sorted(("f1", [10]), ("f2", [20, 30])) == ["f1", "f2"]
+        assert get_sorted(("f3", [10, 50]), ("f4", [5])) == ["f4", "f3"]
+
+        # Both files with multiple time values
+        assert get_sorted(("f5", [6, 7, 8]), ("f6", [1, 2, 3])) == ["f6", "f5"]
+        assert get_sorted(("f7", [6, 7, 8, 100]), ("f8", [101, 102])) == ["f7", "f8"]
+
+        # More than two files
+        got = get_sorted(("f9", [10, 11, 12]), ("f10", [20, 21, 22]),
+                         ("f11", [5, 6, 7]))
+        assert got == ["f11", "f9", "f10"]
+
+    def test_overlapping_time_values(self, tmpdir):
+        """
+        Check that an error is raised when files have overlapping time values
+        and cache=True
+        """
+        def do_test(*values):
+            suffix = "{}.nc".format(time())
+            filenames = []
+            for i, val in enumerate(values):
+                filename = "f{}_{}".format(i, suffix)
+                filenames.append(self.netcdf_file(tmpdir, filename, values=val))
+
+            with pytest.raises(OverlappingUnitsError):
+                create_aggregation(filenames, "time", cache=True)
+
+        # Test when one time range is fully contained within the other
+        do_test([10, 20, 30], [15, 16])
+        # when ranges overlap but not entirely
+        do_test([10, 20, 30], [5, 15])
+        # when time values are repeated
+        do_test([10], [10])
+        do_test([10, 20], [20, 21])
+        # more than two ranges
+        do_test([10, 20], [30, 40], [25, 60])
 
     def test_no_caching(self, tmpdir):
         """
@@ -182,6 +226,30 @@ class TestAggregationCreation(object):
             create_aggregation([f], "nonexistantdimension", cache=False)
         except AggregationError as ex:
             assert False, "Unexpected error: {}".format(ex)
+
+    def test_some_files_fail(self, tmpdir):
+        """
+        Check that an aggregation is still created if some (but not all) files
+        are invalid
+        """
+        no_time = self.netcdf_file(tmpdir, "no-time.nc", dim="not-time")
+        time = self.netcdf_file(tmpdir, "time.nc", dim="time")
+        try:
+            agg = create_aggregation([no_time, time], "time", cache=True)
+            found_files = [el.attrib["location"]
+                           for el in list(agg)[0].findall("netcdf")]
+            assert found_files == [time]
+        except AggregationError as ex:
+            assert False, "Unexpected error: {}".format(ex)
+
+    def test_all_files_fail(self, tmpdir):
+        """
+        Check an exception is thrown if all files are invalid
+        """
+        no_time = self.netcdf_file(tmpdir, "no-time.nc", dim="not-time")
+        no_time2 = self.netcdf_file(tmpdir, "no-time2.nc", dim="not-time")
+        with pytest.raises(AggregationError):
+            create_aggregation([no_time, no_time2], "time", cache=True)
 
 
 class TestPartitioning(object):

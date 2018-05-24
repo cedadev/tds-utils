@@ -13,31 +13,136 @@ from netCDF4 import Dataset
 from tds_utils.xml_utils import element_to_string
 
 
-def get_coord_value(filename, dimension):
+class AggregationError(Exception):
     """
-    Return (units, value) of the coordinate variable for the given dimension
-    in a NetCDF file.
-
-    Raises AssertionError if the coordinate contains multiple values
+    An aggregation could not be created
     """
-    ds = Dataset(filename)
-    try:
-        var = ds.variables[dimension]
-    except KeyError:
-        raise AggregationError("Variable '{}' not found in file '{}'".format(dimension, filename))
 
-    expected_shape = (1,)
-    if var.shape != expected_shape:
-        raise AggregationError("Shape of time variable in file '{}' is {} - should be {}"
-                               .format(filename, var.shape, expected_shape))
 
-    val = var[0]
-    try:
-        units = var.units
-    except AttributeError:
-        units = None
-    ds.close()
-    return (units, val)
+class CoordinatesError(Exception):
+    """
+    There is a problem with the coordinate variable in a NetCDF file
+    """
+
+
+class OverlappingUnitsError(Exception):
+    """
+    The coordinate values of files in the given list are overlapping
+    """
+
+
+class Interval(object):
+    """
+    Class representing an interval of floats that can be ordered based its
+    lower bound
+    """
+    def __init__(self, values):
+        self.values = values
+        self.lower = values[0]
+        self.upper = values[-1]
+
+    def __lt__(self, x):
+        return self.lower < x.lower
+
+
+class DatasetList(list):
+    """
+    A list of datasets that can be sorted by their coordinate values
+    """
+    def __init__(self, dimension):
+        self.dimension = dimension
+
+        # Keep track of units seen in files added to the list, so that we can
+        # tell if all files have the same units or not
+        self.found_units = set([])
+        self.multiple_units = False
+
+        super().__init__(self)
+
+    def add(self, filename):
+        """
+        Add a file (and its coordinate values) to the list
+        """
+        # If already know there are multiple units, sort order does not matter
+        if self.multiple_units:
+            self.append((None, filename))
+            return
+
+        try:
+            units, values = DatasetList.get_coord_values(filename,
+                                                         self.dimension)
+        except CoordinatesError as ex:
+            print("WARNING: {}".format(ex), file=sys.stderr)
+            return
+
+        # Check if we have seen these units before
+        self.found_units.add(units)
+        if len(self.found_units) > 1:
+            self.multiple_units = True
+            self.add(filename)
+            return
+
+        interval = Interval(values)
+        # Sort by interval but keep track of filename too
+        key = (interval, filename)
+        # Get index to insert at to preserve sort order
+        idx = bisect.bisect(self, key)
+        self.insert(idx, key)
+
+        # Check that this interval does not overlap with the previous or
+        # next ones
+        before = None
+        after = None
+        if idx > 0:
+            before = self[idx - 1][0]
+        if idx < len(self) - 1:
+            after = self[idx + 1][0]
+
+        if ((before and interval.lower <= before.upper) or
+                (after and interval.upper >= after.lower)):
+            raise OverlappingUnitsError("File list has overlapping coordinate "
+                                        "values")
+
+    def datasets(self):
+        """
+        Return a generator yielding (filename, coordinate_values), or
+        (filename, None) if multiple units were found and values were not
+        stored
+        """
+        for interval, filename in self:
+            if interval:
+                yield filename, interval.values
+            else:
+                yield filename, None
+
+    @classmethod
+    def get_coord_values(cls, filename, dimension):
+        """
+        Return (units, values) of the coordinate variable for the given
+        dimension in a NetCDF file. `values` is a list sorted in ascending
+        order.
+        """
+        ds = Dataset(filename)
+        try:
+            var = ds.variables[dimension]
+        except KeyError:
+            raise CoordinatesError("Variable '{}' not found in file '{}'"
+                                   .format(dimension, filename))
+
+        # Aggregation dimension should be one-dimensional
+        if len(var.shape) != 1:
+            raise CoordinatesError(
+                "Aggregation dimension must be one-dimensional - shape is {} "
+                "in file '{}'" .format(var.shape, filename)
+            )
+
+        values = sorted(var)
+        try:
+            units = var.units
+        except AttributeError:
+            units = None
+        ds.close()
+        return (units, values)
 
 
 def create_aggregation(file_list, agg_dimension, cache=False):
@@ -49,41 +154,27 @@ def create_aggregation(file_list, agg_dimension, cache=False):
     the NcML.
     """
     root = ET.Element("netcdf", xmlns="http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2")
-    aggregation = ET.SubElement(root, "aggregation", dimName=agg_dimension, type="joinExisting")
+    aggregation = ET.SubElement(root, "aggregation", dimName=agg_dimension,
+                                type="joinExisting")
 
+    # List of dicts containing attributes for <netcdf> sub-elements
     sub_el_attrs = []
 
     if cache:
-        coord_values = []
-        # Keep track of whether the files seen have the same units
-        found_units = set([])
-        multiple_units = False
-
+        ds_list = DatasetList(agg_dimension)
         for filename in file_list:
-            try:
-                units, value = get_coord_value(filename, agg_dimension)
-            except AggregationError as ex:
-                print("WARNING: {}".format(ex), file=sys.stderr)
-                continue
+            ds_list.add(filename)
 
-            # Insert whilst preserving sort order (sorted by value)
-            bisect.insort(coord_values, (value, filename))
-
-            if not multiple_units:
-                found_units.add(units)
-                if len(found_units) > 1:
-                    multiple_units = True
-
-        if not coord_values:
+        if not ds_list:
             raise AggregationError("No aggregation could be created")
 
-        for coord_value, filename in coord_values:
+        for filename, values in ds_list.datasets():
             attrs = {"location": filename}
-            if not multiple_units:
-                attrs["coordValue"] = str(coord_value)
+            if not ds_list.multiple_units:
+                attrs["coordValue"] = ",".join(map(str, values))
             sub_el_attrs.append(attrs)
 
-        if multiple_units and agg_dimension == "time":
+        if ds_list.multiple_units and agg_dimension == "time":
             aggregation.attrib["timeUnitsChange"] = "true"
 
     # If not caching coordinate values then include in the order given
@@ -93,12 +184,6 @@ def create_aggregation(file_list, agg_dimension, cache=False):
     for attrs in sub_el_attrs:
         ET.SubElement(aggregation, "netcdf", **attrs)
     return root
-
-
-class AggregationError(Exception):
-    """
-    Custom exception to indicate that aggregation creation has failed
-    """
 
 
 def main():
