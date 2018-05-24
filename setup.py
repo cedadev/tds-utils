@@ -4,13 +4,16 @@ with open("requirements.txt") as req_file:
     requirements = [line.strip() for line in req_file]
 
 setup(
-    name="tds_utils",
+    name="tds-utils",
     version="0.0.1",
     description="Scripts to perform various tasks to do with THREDDS data server",
     packages=find_packages(),
     install_requires=requirements,
     extras_require={
         "test": ["pytest"]
+    },
+    package_data={
+        "tds_utils": ["templates/*.xml"]
     },
     entry_points={
         "console_scripts": [
