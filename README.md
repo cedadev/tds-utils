@@ -9,12 +9,18 @@ All scripts support `--help` for help on exact usage.
 
 ### aggregate
 
-Read filenames of NetCDF datasets from standard input and print an NcML
-aggregation to standard output.
+Read filenames of datasets from standard input and print an NcML aggregation to
+standard output.
 
 Use `--cache` to open each dataset and write the coordinate value(s) in the
 NcML. This caches the values so that TDS does not need to open each file when
 accessing the aggregation.
+
+By default this script creates 'joinExisting' and assumes input files are
+NetCDF. This behaviour can be fine-tuned by creating a subclass of
+`tds_utils.aggregation:BaseAggregationCreator` and specifying it with
+`--agg-creator-cls`. See the source code for `BaseAggregationCreator` and
+`BaseDatasetReader` for usage.
 
 ### cache_remote_aggregations
 

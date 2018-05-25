@@ -10,8 +10,9 @@ import numpy as np
 from tds_utils.find_ncml import find_ncml_references
 from tds_utils.find_netcdf import find_netcdf_references
 from tds_utils.xml_utils import element_to_string
-from tds_utils.aggregate import (create_aggregation, AggregationError,
-                                 OverlappingUnitsError)
+from tds_utils.aggregation import (create_aggregation, AggregationError,
+                                   OverlappingUnitsError, BaseAggregationCreator,
+                                   BaseDatasetReader, AggregationType)
 from tds_utils.partition_files import partition_files
 from tds_utils.cache_remote_aggregations import AggregationCacher
 from tds_utils.create_catalog import get_catalog_name, CatalogBuilder
@@ -250,6 +251,36 @@ class TestAggregationCreation(object):
         no_time2 = self.netcdf_file(tmpdir, "no-time2.nc", dim="not-time")
         with pytest.raises(AggregationError):
             create_aggregation([no_time, no_time2], "time", cache=True)
+
+    def test_custom_agg_creator_cls(self, tmpdir):
+        class CustomReaderClass(BaseDatasetReader):
+            def __enter__(self):
+                self.f = open(self.filename)
+                return self
+            def __exit__(self, *args, **kwargs):
+                self.f.close()
+            def get_coord_values(self, dimension):
+                val = float(self.f.read().strip())
+                return ("some cool units", [val])
+
+        class CustomAggTypeCreator(BaseAggregationCreator):
+            aggregation_type = AggregationType.JOIN_NEW
+            dataset_reader_cls = CustomReaderClass
+
+        c = CustomAggTypeCreator("time")
+
+        f1 = tmpdir.join("f1")
+        f2 = tmpdir.join("f2")
+        f1.write("135.1")
+        f2.write("235.2")
+
+        agg = c.create_aggregation(map(str, [f1, f2]), cache=True)
+        agg_el = list(agg)[0]
+        assert "type" in agg_el.attrib
+        assert agg_el.attrib["type"] == "joinNew"
+
+        coord_vals = [el.attrib["coordValue"] for el in agg_el.findall("netcdf")]
+        assert coord_vals == ["135.1", "235.2"]
 
 
 class TestPartitioning(object):

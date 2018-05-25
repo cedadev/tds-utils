@@ -17,7 +17,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "aggregate=tds_utils.aggregate:main",
+            "aggregate=tds_utils.aggregation.script:main",
             "cache_remote_aggregations=tds_utils.cache_remote_aggregations:main",
             "create_catalog=tds_utils.create_catalog:main",
             "find_ncml=tds_utils.find_ncml:main",
