@@ -1,9 +1,15 @@
 import xml.etree.cElementTree as ET
 from enum import Enum
+from collections import namedtuple
 
 from tds_utils.aggregation.dataset_list import DatasetList
 from tds_utils.aggregation.readers import NetcdfDatasetReader
 from tds_utils.aggregation.exceptions import AggregationError
+
+
+# Representation of a <variable> element in an NcML document. 'attrs' should
+# be a dictionary mapping name to value for desired child <attribute> elements
+NcMLVariable = namedtuple("NcMLVariable", ["name", "type", "shape", "attrs"])
 
 
 class AggregationType(Enum):
@@ -20,7 +26,8 @@ class BaseAggregationCreator(object):
     """
     Class to encapsulate an aggregation type and a method of reading datasets.
 
-    Child classes should define the properies documented below.
+    Child classes should define the properies documented below, and optionally
+    override process_root_element().
     """
     # Aggregation type -- see the AggregationType enum
     aggregation_type = None
@@ -29,21 +36,45 @@ class BaseAggregationCreator(object):
     # creating with cache=True. See BaseDatasetReader source code for usage
     dataset_reader_cls = None
 
+    # List of NcMLVariable instances to add as <variable> elements in the
+    # NcML, or None
+    extra_variables = None
+
     # NcML namespace
     ncml_xmlns = "http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2"
 
     def __init__(self, dimension):
         self.dimension = dimension
 
+    def process_root_element(self, root):
+        """
+        Process and return the root <netcdf> element of the NcML document to
+        perform additional modifications after the aggregation has been
+        created. root is an ET.Element instance.
+
+        By default return the root element unchanged -- override in child
+        classes to make additional changes.
+        """
+        return root
+
     def create_aggregation(self, file_list, cache=False):
         """
         Create an NcML aggregation for the filenames in `file_list` and return
         the root element as an instance of ET.Element.
 
-        If `cache` is True then open each file to write the coordinate values in
-        the NcML.
+        If `cache` is True then open each file to write the coordinate values
+        in the NcML.
         """
         root = ET.Element("netcdf", xmlns=self.ncml_xmlns)
+
+        # Add extra variables at the top of the XML
+        extra_vars = self.extra_variables or []
+        for var in extra_vars:
+            var_element = ET.SubElement(root, "variable", name=var.name,
+                                        shape=var.shape, type=var.type)
+            for name, value in var.attrs.items():
+                ET.SubElement(var_element, "attribute", name=name, value=value)
+
         aggregation = ET.SubElement(root, "aggregation",
                                     dimName=self.dimension,
                                     type=self.aggregation_type.value)
@@ -76,7 +107,7 @@ class BaseAggregationCreator(object):
         for attrs in sub_el_attrs:
             ET.SubElement(aggregation, "netcdf", **attrs)
 
-        return root
+        return self.process_root_element(root)
 
 
 class AggregationCreator(BaseAggregationCreator):

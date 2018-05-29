@@ -12,7 +12,8 @@ from tds_utils.find_netcdf import find_netcdf_references
 from tds_utils.xml_utils import element_to_string
 from tds_utils.aggregation import (create_aggregation, AggregationError,
                                    OverlappingUnitsError, BaseAggregationCreator,
-                                   BaseDatasetReader, AggregationType)
+                                   BaseDatasetReader, AggregationType,
+                                   NcMLVariable)
 from tds_utils.partition_files import partition_files
 from tds_utils.cache_remote_aggregations import AggregationCacher
 from tds_utils.create_catalog import get_catalog_name, CatalogBuilder
@@ -257,8 +258,10 @@ class TestAggregationCreation(object):
             def __enter__(self):
                 self.f = open(self.filename)
                 return self
+
             def __exit__(self, *args, **kwargs):
                 self.f.close()
+
             def get_coord_values(self, dimension):
                 val = float(self.f.read().strip())
                 return ("some cool units", [val])
@@ -266,6 +269,14 @@ class TestAggregationCreation(object):
         class CustomAggTypeCreator(BaseAggregationCreator):
             aggregation_type = AggregationType.JOIN_NEW
             dataset_reader_cls = CustomReaderClass
+            extra_variables = [
+                NcMLVariable(name="test-var", shape="time", type="int",
+                             attrs={"units": "seconds since the big bang"})
+                ]
+
+            def process_root_element(self, root):
+                ET.SubElement(root, "someextraelement")
+                return root
 
         c = CustomAggTypeCreator("time")
 
@@ -275,12 +286,27 @@ class TestAggregationCreation(object):
         f2.write("235.2")
 
         agg = c.create_aggregation(map(str, [f1, f2]), cache=True)
-        agg_el = list(agg)[0]
+        agg_el = agg.findall("aggregation")[0]
         assert "type" in agg_el.attrib
         assert agg_el.attrib["type"] == "joinNew"
 
         coord_vals = [el.attrib["coordValue"] for el in agg_el.findall("netcdf")]
         assert coord_vals == ["135.1", "235.2"]
+
+        # Check extra variables are present
+        extra_vars = agg.findall("variable")
+        assert len(extra_vars) == 1
+        var = extra_vars[0]
+        assert var.attrib == {"name": "test-var", "shape": "time",
+                              "type": "int"}
+        var_attributes = var.findall("attribute")
+        assert len(var_attributes) == 1
+        expected_attrib = {"name": "units",
+                           "value": "seconds since the big bang"}
+        assert var_attributes[0].attrib == expected_attrib
+
+        # Check extra processing was performed
+        assert len(agg.findall("someextraelement")) == 1
 
 
 class TestPartitioning(object):
