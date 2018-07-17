@@ -2,6 +2,7 @@ import os
 import xml.etree.cElementTree as ET
 import json
 from time import time
+from collections import OrderedDict
 
 import pytest
 from netCDF4 import Dataset
@@ -310,14 +311,16 @@ class TestAggregationCreation(object):
 
     def test_global_attributes(self, tmpdir):
         nc = self.netcdf_file(tmpdir, "f.nc")
+        global_attrs = OrderedDict()
+        global_attrs["myattr"] = "myvalue"
+        global_attrs["otherattr"] = "hello"
         root = create_aggregation([str(nc)], "time",
-                                  global_attrs={"myattr": "myvalue",
-                                                "otherattr": "hello"})
+                                  global_attrs=global_attrs)
         print(ET.dump(root))
         attribute_els = root.findall("attribute")
         assert len(attribute_els) == 2
-        assert attribute_els[0].attrib == {"name": "myattr", "value": "myvalue"}
-        assert attribute_els[1].attrib == {"name": "otherattr", "value": "hello"}
+        assert attribute_els[1].attrib == {"name": "myattr", "value": "myvalue"}
+        assert attribute_els[0].attrib == {"name": "otherattr", "value": "hello"}
 
 
 class TestPartitioning(object):

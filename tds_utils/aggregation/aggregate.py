@@ -61,7 +61,8 @@ class BaseAggregationCreator(object):
         """
         Add a global attribute to the root <netcdf> element
         """
-        ET.SubElement(root, "attribute", name=attr, value=value)
+        element = ET.Element("attribute", name=attr, value=value)
+        root.insert(0, element)
 
     def create_aggregation(self, file_list, cache=False, global_attrs=None):
         """
