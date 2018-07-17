@@ -57,6 +57,12 @@ class BaseAggregationCreator(object):
         """
         return root
 
+    def add_global_attr(self, root, attr, value):
+        """
+        Add a global attribute to the root <netcdf> element
+        """
+        ET.SubElement(root, "attribute", name=attr, value=value)
+
     def create_aggregation(self, file_list, cache=False, global_attrs=None):
         """
         Create an NcML aggregation for the filenames in `file_list` and return
@@ -72,7 +78,7 @@ class BaseAggregationCreator(object):
         # Add global attributes and extra variables at the top of the XML
         global_attrs = global_attrs or {}
         for attr, value in global_attrs.items():
-            ET.SubElement(root, "attribute", name=attr, value=value)
+            self.add_global_attr(root, attr, value)
 
         extra_vars = self.extra_variables or []
         for var in extra_vars:
