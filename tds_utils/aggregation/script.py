@@ -50,11 +50,32 @@ def main():
         type=python_class,
         help="Python class to use to create the aggregation. This should be a "
              "sub-class of `tds_utils.aggregation:BaseAggregationCreator'. "
-             "See the source code for usage."
+             "See the source code for usage"
+    )
+    parser.add_argument(
+        "-g", "--global-attr",
+        default=[],
+        action="append",
+        help="Global attribute to set in the generated aggregation. This "
+             "should be of the form '<attr>=<value>'. Can be given multiple "
+             "times"
     )
 
     args = parser.parse_args(sys.argv[1:])
     path_list = [line for line in sys.stdin.read().split(os.linesep) if line]
     creator = args.agg_creator_cls(args.dimension)
-    ncml_el = creator.create_aggregation(path_list, cache=args.cache)
+
+    # Build global attributes dict
+    global_attrs = {}
+    for attr_string in args.global_attr:
+        split = map(str.strip, attr_string.split("="))
+        try:
+            attr, value = split
+        except ValueError:
+            parser.error("Invalid global attribute '{}'. Should be of the "
+                         "form '<attr>=<value>'".format(attr_string))
+        global_attrs[attr] = value
+
+    ncml_el = creator.create_aggregation(path_list, cache=args.cache,
+                                         global_attrs=global_attrs)
     print(element_to_string(ncml_el))

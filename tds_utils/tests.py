@@ -308,6 +308,17 @@ class TestAggregationCreation(object):
         # Check extra processing was performed
         assert len(agg.findall("someextraelement")) == 1
 
+    def test_global_attributes(self, tmpdir):
+        nc = self.netcdf_file(tmpdir, "f.nc")
+        root = create_aggregation([str(nc)], "time",
+                                  global_attrs={"myattr": "myvalue",
+                                                "otherattr": "hello"})
+        print(ET.dump(root))
+        attribute_els = root.findall("attribute")
+        assert len(attribute_els) == 2
+        assert attribute_els[0].attrib == {"name": "myattr", "value": "myvalue"}
+        assert attribute_els[1].attrib == {"name": "otherattr", "value": "hello"}
+
 
 class TestPartitioning(object):
     def test_partition(self):

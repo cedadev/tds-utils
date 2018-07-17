@@ -57,17 +57,23 @@ class BaseAggregationCreator(object):
         """
         return root
 
-    def create_aggregation(self, file_list, cache=False):
+    def create_aggregation(self, file_list, cache=False, global_attrs=None):
         """
         Create an NcML aggregation for the filenames in `file_list` and return
         the root element as an instance of ET.Element.
 
         If `cache` is True then open each file to write the coordinate values
         in the NcML.
+
+        A dict of global attributes (`global_attrs`) can optionally be given.
         """
         root = ET.Element("netcdf", xmlns=self.ncml_xmlns)
 
-        # Add extra variables at the top of the XML
+        # Add global attributes and extra variables at the top of the XML
+        global_attrs = global_attrs or {}
+        for attr, value in global_attrs.items():
+            ET.SubElement(root, "attribute", name=attr, value=value)
+
         extra_vars = self.extra_variables or []
         for var in extra_vars:
             var_element = ET.SubElement(root, "variable", name=var.name,
@@ -118,9 +124,11 @@ class AggregationCreator(BaseAggregationCreator):
     dataset_reader_cls = NetcdfDatasetReader
 
 
-def create_aggregation(file_list, agg_dimension, cache=False):
+def create_aggregation(file_list, agg_dimension, cache=False,
+                       global_attrs=None):
     """
     Convenience function to create an aggregation using the default class
     """
     return AggregationCreator(agg_dimension).create_aggregation(file_list,
-                                                                cache)
+                                                                cache,
+                                                                global_attrs)
