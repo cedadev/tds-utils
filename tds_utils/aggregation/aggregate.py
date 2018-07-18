@@ -1,8 +1,9 @@
+import sys
 import xml.etree.cElementTree as ET
 from enum import Enum
 from collections import namedtuple
 
-from tds_utils.aggregation.dataset_list import DatasetList
+from tds_utils.aggregation.dataset_list import DatasetList, AggregatedGlobalAttr
 from tds_utils.aggregation.readers import NetcdfDatasetReader
 from tds_utils.aggregation.exceptions import AggregationError
 
@@ -64,7 +65,8 @@ class BaseAggregationCreator(object):
         element = ET.Element("attribute", name=attr, value=value)
         root.insert(0, element)
 
-    def create_aggregation(self, file_list, cache=False, global_attrs=None):
+    def create_aggregation(self, file_list, cache=False, global_attrs=None,
+                           attr_aggs=None):
         """
         Create an NcML aggregation for the filenames in `file_list` and return
         the root element as an instance of ET.Element.
@@ -75,9 +77,10 @@ class BaseAggregationCreator(object):
         A dict of global attributes (`global_attrs`) can optionally be given.
         """
         root = ET.Element("netcdf", xmlns=self.ncml_xmlns)
+        global_attrs = global_attrs or {}
+        attr_aggs = attr_aggs or []
 
         # Add global attributes and extra variables at the top of the XML
-        global_attrs = global_attrs or {}
         for attr, value in global_attrs.items():
             self.add_global_attr(root, attr, value)
 
@@ -95,9 +98,10 @@ class BaseAggregationCreator(object):
         # List of dicts containing attributes for <netcdf> sub-elements
         sub_el_attrs = []
 
-        if cache:
+        if cache or attr_aggs:
             ds_list = DatasetList(self.dimension,
-                                  ds_reader_cls=self.dataset_reader_cls)
+                                  ds_reader_cls=self.dataset_reader_cls,
+                                  attr_aggs=attr_aggs)
             for filename in file_list:
                 ds_list.add(filename)
 
@@ -113,7 +117,15 @@ class BaseAggregationCreator(object):
             if ds_list.multiple_units and self.dimension == "time":
                 aggregation.attrib["timeUnitsChange"] = "true"
 
-        # If not caching coordinate values then include in the order given
+            # Add global attributes that are aggregated across files
+            for attr_agg in attr_aggs:
+                try:
+                    value = attr_agg.get_value()
+                except ValueError as ex:
+                    print("WARNING: {}".format(ex), file=sys.stderr)
+                    continue
+                self.add_global_attr(root, attr_agg.attr, value)
+
         else:
             sub_el_attrs = [{"location": filename} for filename in file_list]
 
@@ -131,11 +143,8 @@ class AggregationCreator(BaseAggregationCreator):
     dataset_reader_cls = NetcdfDatasetReader
 
 
-def create_aggregation(file_list, agg_dimension, cache=False,
-                       global_attrs=None):
+def create_aggregation(file_list, agg_dimension, **kwargs):
     """
     Convenience function to create an aggregation using the default class
     """
-    return AggregationCreator(agg_dimension).create_aggregation(file_list,
-                                                                cache,
-                                                                global_attrs)
+    return AggregationCreator(agg_dimension).create_aggregation(file_list, **kwargs)

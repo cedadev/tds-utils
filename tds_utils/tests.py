@@ -14,7 +14,7 @@ from tds_utils.xml_utils import element_to_string
 from tds_utils.aggregation import (create_aggregation, AggregationError,
                                    OverlappingUnitsError, BaseAggregationCreator,
                                    BaseDatasetReader, AggregationType,
-                                   NcMLVariable)
+                                   NcMLVariable, AggregatedGlobalAttr)
 from tds_utils.partition_files import partition_files
 from tds_utils.cache_remote_aggregations import AggregationCacher
 from tds_utils.create_catalog import get_catalog_name, CatalogBuilder
@@ -33,7 +33,7 @@ def assert_valid_xml(xml_string):
 class TestAggregationCreation(object):
 
     def netcdf_file(self, tmpdir, filename, dim="time", values=[1234],
-                    units=None):
+                    units=None, global_attrs=None):
         """
         Create a NetCDF file containing a single dimension. Return the path
         at which the dataset is saved.
@@ -45,6 +45,9 @@ class TestAggregationCreation(object):
         if units:
             var.units = units
         var[:] = values
+        if global_attrs:
+            for attr, value in global_attrs.items():
+                setattr(ds, attr, value)
         ds.close()
         return path
 
@@ -309,6 +312,39 @@ class TestAggregationCreation(object):
         # Check extra processing was performed
         assert len(agg.findall("someextraelement")) == 1
 
+    def test_attribute_aggregation(self, tmpdir):
+        files = [
+            self.netcdf_file(tmpdir, "f1.nc", values=[1], global_attrs={
+                "foobar": 1,
+                "lat_min": -40,
+                "lat_max": 90
+            }),
+            self.netcdf_file(tmpdir, "f2.nc", values=[2], global_attrs={
+                "foobar": 1,
+                "lat_min": -1,
+                "lat_max": 10
+            }),
+            self.netcdf_file(tmpdir, "f3.nc", values=[3], global_attrs={
+                "foobar": 4,
+                "lat_min": -85,
+                "lat_max": 10
+            })
+        ]
+
+        attr_aggs = [
+            AggregatedGlobalAttr(attr="lat_min", callback=min),
+            AggregatedGlobalAttr(attr="lat_max", callback=max),
+            # 'custom' callback -- find mean value
+            AggregatedGlobalAttr(attr="foobar", callback=np.mean),
+        ]
+
+        agg = create_aggregation(files, "time", attr_aggs=attr_aggs)
+        attribute_els = agg.findall("attribute")
+        assert len(attribute_els) == 3
+        assert attribute_els[2].attrib == {"name": "lat_min", "value": -85}
+        assert attribute_els[1].attrib == {"name": "lat_max", "value": 90}
+        assert attribute_els[0].attrib == {"name": "foobar", "value": 2}
+
     def test_global_attributes(self, tmpdir):
         nc = self.netcdf_file(tmpdir, "f.nc")
         global_attrs = OrderedDict()
@@ -316,7 +352,6 @@ class TestAggregationCreation(object):
         global_attrs["otherattr"] = "hello"
         root = create_aggregation([str(nc)], "time",
                                   global_attrs=global_attrs)
-        print(ET.dump(root))
         attribute_els = root.findall("attribute")
         assert len(attribute_els) == 2
         assert attribute_els[1].attrib == {"name": "myattr", "value": "myvalue"}

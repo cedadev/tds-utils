@@ -1,8 +1,35 @@
 import sys
 import bisect
+from collections import namedtuple
 
 from tds_utils.aggregation.exceptions import (CoordinatesError,
                                               OverlappingUnitsError)
+
+
+class AggregatedGlobalAttr:
+    """
+    Class to represent a global variable whose value should be calculated using
+    values of the attribute in each dataset
+    """
+    def __init__(self, attr, callback):
+        """
+        `attr` is the attribute name, and `callback` is a function that takes
+        a list of attribute values and returns the one that should be used in
+        the aggregation
+        """
+        self.attr = attr
+        self.callback = callback
+        self.values = []
+
+    def add_value(self, value):
+        self.values.append(value)
+
+    def get_value(self):
+        if not self.values:
+            raise ValueError(
+                "Attribute '{}' not found in any files".format(self.attr)
+            )
+        return self.callback(self.values)
 
 
 class Interval(object):
@@ -24,9 +51,10 @@ class DatasetList(list):
     A list of datasets that can be sorted by their coordinate values
     """
 
-    def __init__(self, dimension, ds_reader_cls):
+    def __init__(self, dimension, ds_reader_cls, attr_aggs=None):
         self.dimension = dimension
         self.ds_reader_cls = ds_reader_cls
+        self.attr_aggs = attr_aggs or []
 
         # Keep track of units seen in files added to the list, so that we can
         # tell if all files have the same units or not
@@ -40,17 +68,28 @@ class DatasetList(list):
         Add a file (and its coordinate values) to the list
         """
         # If already know there are multiple units, sort order does not matter
-        if self.multiple_units:
+        # so do not bother to open file (unless need to read attributes)
+        if not self.attr_aggs and self.multiple_units:
             self.append((None, filename))
             return
 
-        try:
-            with self.ds_reader_cls(filename) as ds:
+        with self.ds_reader_cls(filename) as ds:
+            try:
                 units, values = ds.get_coord_values(self.dimension)
+            except CoordinatesError as ex:
+                print("WARNING: {}".format(ex), file=sys.stderr)
+                return
 
-        except CoordinatesError as ex:
-            print("WARNING: {}".format(ex), file=sys.stderr)
-            return
+            # Update attribute aggregation values
+            for attr_agg in self.attr_aggs:
+                try:
+                    attr_value = ds.get_attribute(attr_agg.attr)
+                except AttributeError:
+                    print("WARNING: Attribute '{}' not found in '{}'"
+                          .format(attr_agg.attr, filename),
+                          file=sys.stderr)
+                    continue
+                attr_agg.add_value(attr_value)
 
         # Check if we have seen these units before
         self.found_units.add(units)

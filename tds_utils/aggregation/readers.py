@@ -34,6 +34,12 @@ class BaseDatasetReader(object):
         """
         raise NotImplementedError
 
+    def get_attribute(self, attr):
+        """
+        Read and return a global attribute from the dataset
+        """
+        raise NotImplementedError
+
 
 class NetcdfDatasetReader(BaseDatasetReader):
     """
@@ -66,3 +72,6 @@ class NetcdfDatasetReader(BaseDatasetReader):
         except AttributeError:
             units = None
         return (units, values)
+
+    def get_attribute(self, attr):
+        return getattr(self.ds, attr)
