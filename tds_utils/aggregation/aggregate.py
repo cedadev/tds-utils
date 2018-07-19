@@ -4,6 +4,8 @@ from enum import Enum
 from collections import namedtuple
 import numbers
 
+from tqdm import tqdm
+
 from tds_utils.aggregation.dataset_list import DatasetList, AggregatedGlobalAttr
 from tds_utils.aggregation.readers import NetcdfDatasetReader
 from tds_utils.aggregation.exceptions import AggregationError
@@ -113,7 +115,8 @@ class BaseAggregationCreator(object):
             ds_list = DatasetList(self.dimension,
                                   ds_reader_cls=self.dataset_reader_cls,
                                   attr_aggs=attr_aggs)
-            for filename in file_list:
+            # tqdm shows a progress bar
+            for filename in tqdm(file_list, ncols=80):
                 ds_list.add(filename)
 
             if not ds_list:
