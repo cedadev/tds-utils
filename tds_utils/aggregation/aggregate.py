@@ -2,6 +2,7 @@ import sys
 import xml.etree.cElementTree as ET
 from enum import Enum
 from collections import namedtuple
+import numbers
 
 from tds_utils.aggregation.dataset_list import DatasetList, AggregatedGlobalAttr
 from tds_utils.aggregation.readers import NetcdfDatasetReader
@@ -62,7 +63,17 @@ class BaseAggregationCreator(object):
         """
         Add a global attribute to the root <netcdf> element
         """
-        element = ET.Element("attribute", name=attr, value=value)
+        kwargs = {
+            "name": attr,
+            "value": str(value)
+        }
+        # Use numbers module as it works with numpy types too
+        if isinstance(value, numbers.Integral):
+            kwargs["type"] = "int"
+        elif isinstance(value, numbers.Real):
+            kwargs["type"] = "float"
+
+        element = ET.Element("attribute", **kwargs)
         root.insert(0, element)
 
     def create_aggregation(self, file_list, cache=False, global_attrs=None,
