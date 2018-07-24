@@ -88,6 +88,9 @@ class BaseAggregationCreator(object):
         in the NcML.
 
         A dict of global attributes (`global_attrs`) can optionally be given.
+
+        `attr_aggs` is an optional list of AggregatedGlobalAttr objects for
+        global attributes that should be calculated from individual files.
         """
         root = ET.Element("netcdf", xmlns=self.ncml_xmlns)
         global_attrs = global_attrs or {}
