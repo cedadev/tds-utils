@@ -60,6 +60,13 @@ def main():
              "should be of the form '<attr>=<value>'. Can be given multiple "
              "times"
     )
+    parser.add_argument(
+        "-r", "--remove-attr",
+        default=[],
+        action="append",
+        help="Global attribute to remove in the generated aggregation. Can be "
+             "given multiple times"
+    )
 
     args = parser.parse_args(sys.argv[1:])
     path_list = [line for line in sys.stdin.read().split(os.linesep) if line]
@@ -77,5 +84,6 @@ def main():
         global_attrs[attr] = value
 
     ncml_el = creator.create_aggregation(path_list, cache=args.cache,
-                                         global_attrs=global_attrs)
+                                         global_attrs=global_attrs,
+                                         remove_attrs=args.remove_attr)
     print(element_to_string(ncml_el))

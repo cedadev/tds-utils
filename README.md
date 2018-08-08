@@ -16,7 +16,9 @@ Use `--cache` to open each dataset and write the coordinate value(s) in the
 NcML. This caches the values so that TDS does not need to open each file when
 accessing the aggregation.
 
-Global attributes can be added in the NcML with `--global-attr attr=value`.
+Global attributes can be added in the NcML with `--global-attr <attr>=<value>`,
+and removed with `--remove-attr <name>`. These options can be given multiple
+times to add/remove multiple attributes.
 
 By default this script creates 'joinExisting' and assumes input files are
 NetCDF. This behaviour can be fine tuned by [creating a custom aggregation

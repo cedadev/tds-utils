@@ -61,6 +61,14 @@ class BaseAggregationCreator(object):
         """
         return root
 
+    def remove_global_attr(self, root, attr):
+        """
+        Remove a global attribute by adding a <remove> element to the root
+        <netcdf> element
+        """
+        element = ET.Element("remove", name=attr, type="attribute")
+        root.insert(0, element)
+
     def add_global_attr(self, root, attr, value):
         """
         Add a global attribute to the root <netcdf> element
@@ -79,7 +87,7 @@ class BaseAggregationCreator(object):
         root.insert(0, element)
 
     def create_aggregation(self, file_list, cache=False, global_attrs=None,
-                           attr_aggs=None):
+                           remove_attrs=None, attr_aggs=None):
         """
         Create an NcML aggregation for the filenames in `file_list` and return
         the root element as an instance of ET.Element.
@@ -87,14 +95,22 @@ class BaseAggregationCreator(object):
         If `cache` is True then open each file to write the coordinate values
         in the NcML.
 
-        A dict of global attributes (`global_attrs`) can optionally be given.
+        `global_attrs` is an optional dict of global attributes to add to the
+        aggregation.
+
+        `remove_attrs` is an optional list of global attribute names to remove
+        from the aggregation.
 
         `attr_aggs` is an optional list of AggregatedGlobalAttr objects for
         global attributes that should be calculated from individual files.
         """
         root = ET.Element("netcdf", xmlns=self.ncml_xmlns)
         global_attrs = global_attrs or {}
+        remove_attrs = remove_attrs or []
         attr_aggs = attr_aggs or []
+
+        for attr in remove_attrs:
+            self.remove_global_attr(root, attr)
 
         # Add global attributes and extra variables at the top of the XML
         for attr, value in global_attrs.items():

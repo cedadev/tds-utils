@@ -373,6 +373,16 @@ class TestAggregationCreation(object):
             "name": "myfloat", "value": "42.0", "type": "float"
         }
 
+    def test_remove_global_attributes(self, tmpdir):
+        nc = self.netcdf_file(tmpdir, "f.nc")
+        root = create_aggregation(
+            [str(nc)], "time", remove_attrs=["bad-attribute", "even-worse-attribute"]
+        )
+        remove_els = root.findall("remove")
+        assert len(remove_els) == 2
+        assert remove_els[0].attrib == {"name": "even-worse-attribute", "type": "attribute"}
+        assert remove_els[1].attrib == {"name": "bad-attribute", "type": "attribute"}
+
 
 class TestPartitioning(object):
     def test_partition(self):
