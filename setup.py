@@ -1,14 +1,17 @@
 from setuptools import setup, find_packages
 
-with open("requirements.txt") as req_file:
-    requirements = [line.strip() for line in req_file]
-
 setup(
     name="tds-utils",
     version="0.0.1",
     description="Scripts to perform various tasks to do with THREDDS data server",
     packages=find_packages(),
-    install_requires=requirements,
+    install_requires=[
+        'requests',
+        'netCDF4',
+        'numpy',
+        'Jinja2',
+        'tqdm'
+    ],
     extras_require={
         "test": ["pytest"]
     },
