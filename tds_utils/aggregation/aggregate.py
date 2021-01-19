@@ -10,7 +10,6 @@ from tds_utils.aggregation.dataset_list import DatasetList, AggregatedGlobalAttr
 from tds_utils.aggregation.readers import NetcdfDatasetReader
 from tds_utils.aggregation.exceptions import AggregationError
 
-
 # Representation of a <variable> element in an NcML document. 'attrs' should
 # be a dictionary mapping name to value for desired child <attribute> elements
 NcMLVariable = namedtuple("NcMLVariable", ["name", "type", "shape", "attrs"])

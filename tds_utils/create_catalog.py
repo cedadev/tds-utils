@@ -1,4 +1,4 @@
-qw"""
+"""
 Create a THREDDS catalog from a list of NetCDF files. Can create either dataset
 catalogs or root-level catalogs with links to other catalogs.
 """
