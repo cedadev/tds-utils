@@ -71,7 +71,7 @@ class NetcdfDatasetReader(BaseDatasetReader):
             units = var.units
         except AttributeError:
             units = None
-        return (units, values)
+        return units, values
 
     def get_attribute(self, attr):
         return getattr(self.ds, attr)

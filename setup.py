@@ -5,7 +5,7 @@ with open("requirements.txt") as req_file:
 
 setup(
     name="tds-utils",
-    version="0.0.1",
+    version="0.0.2",
     description="Scripts to perform various tasks to do with THREDDS data server",
     packages=find_packages(),
     install_requires=requirements,

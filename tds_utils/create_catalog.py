@@ -1,4 +1,4 @@
-"""
+qw"""
 Create a THREDDS catalog from a list of NetCDF files. Can create either dataset
 catalogs or root-level catalogs with links to other catalogs.
 """
@@ -72,6 +72,12 @@ class CatalogBuilder(object):
         template = self.env.get_template(template_name)
         return template.render(**kwargs)
 
+    def create_dataset(self, filename, ds_root, file_services):
+        this_id = os.path.basename(filename)
+        url_path = ds_root.path + os.path.abspath(filename)
+        a_meths = [AccessMethod(s, url_path, "NetCDF-4") for s in file_services]
+        return ThreddsDataset(name=this_id, id=this_id, access_methods=a_meths)
+
     def dataset_catalog(self, filenames, ds_id, opendap=False, ncml_path=None):
         """
         Build a THREDDS catalog and return the XML as a string
@@ -91,11 +97,8 @@ class CatalogBuilder(object):
 
         datasets = []
         for filename in filenames:
-            this_id = os.path.basename(filename)
-            url_path = ds_root.path + os.path.abspath(filename)
-            a_meths = [AccessMethod(s, url_path, "NetCDF-4") for s in file_services]
-            datasets.append(ThreddsDataset(name=this_id, id=this_id,
-                                           access_methods=a_meths))
+            ds = self.create_dataset(filename, ds_root, file_services)
+            datasets.append(ds)
 
         aggregation = None
         if ncml_path:
